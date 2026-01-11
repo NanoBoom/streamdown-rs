@@ -72,10 +72,7 @@ mod unix {
             // Parse command into program and arguments
             let parts: Vec<&str> = command.split_whitespace().collect();
             if parts.is_empty() {
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "Empty command",
-                ));
+                return Err(io::Error::new(io::ErrorKind::InvalidInput, "Empty command"));
             }
 
             // Save original terminal settings
@@ -84,8 +81,8 @@ mod unix {
             let original_termios = termios::tcgetattr(&stdin_fd).ok();
 
             // Open PTY pair
-            let OpenptyResult { master, slave } = openpty(None, None)
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            let OpenptyResult { master, slave } =
+                openpty(None, None).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
             // Fork
             match unsafe { fork() } {
@@ -115,10 +112,8 @@ mod unix {
                         Ok(c) => c,
                         Err(_) => std::process::exit(127),
                     };
-                    let args: Vec<CString> = parts
-                        .iter()
-                        .filter_map(|s| CString::new(*s).ok())
-                        .collect();
+                    let args: Vec<CString> =
+                        parts.iter().filter_map(|s| CString::new(*s).ok()).collect();
 
                     // This doesn't return on success
                     let _ = nix::unistd::execvp(&program, &args);
@@ -173,7 +168,10 @@ mod unix {
             let master_fd = self.master.as_raw_fd();
 
             let mut fds = [
-                PollFd::new(unsafe { BorrowedFd::borrow_raw(stdin_fd) }, PollFlags::POLLIN),
+                PollFd::new(
+                    unsafe { BorrowedFd::borrow_raw(stdin_fd) },
+                    PollFlags::POLLIN,
+                ),
                 PollFd::new(self.master.as_fd(), PollFlags::POLLIN),
             ];
 
@@ -225,8 +223,7 @@ mod unix {
         /// Write bytes to the master (keyboard input to subprocess).
         pub fn write_master(&mut self, data: &[u8]) -> io::Result<usize> {
             self.keyboard_count += data.len();
-            write(&self.master, data)
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+            write(&self.master, data).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
         }
 
         /// Write a single byte to master.
@@ -302,7 +299,7 @@ mod unix {
             // Restore original terminal settings
             if let Some(ref orig) = self.original_termios {
                 // SAFETY: STDIN_FILENO is always valid for the process lifetime
-            let stdin_fd = unsafe { BorrowedFd::borrow_raw(libc::STDIN_FILENO) };
+                let stdin_fd = unsafe { BorrowedFd::borrow_raw(libc::STDIN_FILENO) };
                 let _ = termios::tcsetattr(&stdin_fd, SetArg::TCSADRAIN, orig);
             }
 

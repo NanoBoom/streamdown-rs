@@ -8,9 +8,9 @@
 //! - h5: Plain text
 //! - h6: Grey/dimmed
 
+use crate::fg_color;
 use crate::text::simple_wrap;
 use crate::RenderStyle;
-use crate::fg_color;
 use streamdown_ansi::codes::{BOLD_OFF, BOLD_ON, RESET};
 use streamdown_ansi::utils::visible_length;
 
@@ -46,18 +46,15 @@ pub fn render_heading(
                 // h1: Bold, centered
                 format!(
                     "{}\n{}{}{}{}{}",
-                    left_margin,
-                    left_margin,
-                    BOLD_ON,
-                    center_pad,
-                    line,
-                    BOLD_OFF
+                    left_margin, left_margin, BOLD_ON, center_pad, line, BOLD_OFF
                 )
             }
             2 => {
                 // h2: Bold, bright color, centered
                 let fg = fg_color(&style.bright);
-                let spaces_right = width.saturating_sub(line_width).saturating_sub(spaces_to_center);
+                let spaces_right = width
+                    .saturating_sub(line_width)
+                    .saturating_sub(spaces_to_center);
                 format!(
                     "{}\n{}{}{}{}{}{}{}{}",
                     left_margin,

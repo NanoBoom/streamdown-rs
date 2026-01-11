@@ -23,16 +23,17 @@ static IMAGE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"!\[([^\]]*)\]\(([^\)]+)\)").unwrap());
 
 /// Regex for matching footnotes: [^1] or [^1]:
-static FOOTNOTE_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\[\^(\d+)\]:?").unwrap());
+static FOOTNOTE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[\^(\d+)\]:?").unwrap());
 
 /// Regex for matching inline code spans: `code` or ``code``
-static CODE_SPAN_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"``[^`]+``|`[^`]+`").unwrap());
+static CODE_SPAN_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"``[^`]+``|`[^`]+`").unwrap());
 
 /// Find byte ranges of inline code spans in a line.
 fn find_code_regions(line: &str) -> Vec<(usize, usize)> {
-    CODE_SPAN_RE.find_iter(line).map(|m| (m.start(), m.end())).collect()
+    CODE_SPAN_RE
+        .find_iter(line)
+        .map(|m| (m.start(), m.end()))
+        .collect()
 }
 
 /// Token types for inline markdown content.
@@ -84,7 +85,10 @@ pub enum Token {
 impl Token {
     /// Check if this token is a formatting marker.
     pub fn is_marker(&self) -> bool {
-        !matches!(self, Token::Text(_) | Token::Link { .. } | Token::Image { .. } | Token::Footnote(_))
+        !matches!(
+            self,
+            Token::Text(_) | Token::Link { .. } | Token::Image { .. } | Token::Footnote(_)
+        )
     }
 
     /// Get the marker string for formatting tokens.
@@ -223,7 +227,9 @@ impl Tokenizer {
         // Filter out extractions inside code spans (backtick-delimited regions)
         let code_regions = find_code_regions(line);
         extractions.retain(|(start, end, _)| {
-            !code_regions.iter().any(|(cs, ce)| *start >= *cs && *end <= *ce)
+            !code_regions
+                .iter()
+                .any(|(cs, ce)| *start >= *cs && *end <= *ce)
         });
 
         // Sort extractions by start position
@@ -308,7 +314,9 @@ pub fn not_text(token: &str) -> bool {
         return true;
     }
 
-    !token.chars().all(|c| c.is_alphanumeric() || c == '\\' || c == '"')
+    !token
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '\\' || c == '"')
 }
 
 #[cfg(test)]

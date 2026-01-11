@@ -56,7 +56,11 @@ impl FormatState {
 
     #[allow(dead_code)]
     fn any_active(&self) -> bool {
-        self.bold || self.italic || self.underline || self.strikeout || self.code_backticks.is_some()
+        self.bold
+            || self.italic
+            || self.underline
+            || self.strikeout
+            || self.code_backticks.is_some()
     }
 
     fn reset(&mut self) {
@@ -447,7 +451,10 @@ mod tests {
     fn test_parse_plain_text() {
         let mut parser = InlineParser::new();
         let elements = parser.parse("Hello world");
-        assert_eq!(elements, vec![InlineElement::Text("Hello world".to_string())]);
+        assert_eq!(
+            elements,
+            vec![InlineElement::Text("Hello world".to_string())]
+        );
     }
 
     #[test]

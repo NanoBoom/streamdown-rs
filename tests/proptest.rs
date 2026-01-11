@@ -20,15 +20,17 @@ fn text_line() -> impl Strategy<Value = String> {
 
 /// Generate a heading.
 fn heading() -> impl Strategy<Value = String> {
-    (1..=6usize, text_line()).prop_map(|(level, text)| {
-        format!("{} {}", "#".repeat(level), text)
-    })
+    (1..=6usize, text_line()).prop_map(|(level, text)| format!("{} {}", "#".repeat(level), text))
 }
 
 /// Generate a code block.
 fn code_block() -> impl Strategy<Value = String> {
     (text_line(), prop::collection::vec(text_line(), 0..10)).prop_map(|(lang, lines)| {
-        let lang = if lang.is_empty() { String::new() } else { lang.split_whitespace().next().unwrap_or("").to_string() };
+        let lang = if lang.is_empty() {
+            String::new()
+        } else {
+            lang.split_whitespace().next().unwrap_or("").to_string()
+        };
         format!("```{}\n{}\n```", lang, lines.join("\n"))
     })
 }
@@ -36,7 +38,11 @@ fn code_block() -> impl Strategy<Value = String> {
 /// Generate a list.
 fn list() -> impl Strategy<Value = String> {
     prop::collection::vec(text_line(), 1..10).prop_map(|items| {
-        items.iter().map(|item| format!("- {}", item)).collect::<Vec<_>>().join("\n")
+        items
+            .iter()
+            .map(|item| format!("- {}", item))
+            .collect::<Vec<_>>()
+            .join("\n")
     })
 }
 

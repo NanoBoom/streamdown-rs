@@ -105,10 +105,7 @@ pub fn savebrace(code: &str) -> io::Result<PathBuf> {
         }
     }
 
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)?;
+    let mut file = OpenOptions::new().create(true).append(true).open(&path)?;
 
     // Write code followed by null byte separator
     file.write_all(code.as_bytes())?;

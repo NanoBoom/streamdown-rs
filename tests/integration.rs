@@ -239,9 +239,7 @@ fn test_links_md() {
     assert!(!events.is_empty());
 
     // Should have link events
-    let has_link = events
-        .iter()
-        .any(|e| matches!(e, ParseEvent::Link { .. }));
+    let has_link = events.iter().any(|e| matches!(e, ParseEvent::Link { .. }));
     // Links might be in inline content, so we check the output instead
 
     let output = render_to_string(&content, 80);
@@ -472,9 +470,15 @@ def hello():
     assert!(!output.is_empty());
 
     // Check we have various event types
-    let has_heading = events.iter().any(|e| matches!(e, ParseEvent::Heading { .. }));
-    let has_code = events.iter().any(|e| matches!(e, ParseEvent::CodeBlockStart { .. }));
-    let has_list = events.iter().any(|e| matches!(e, ParseEvent::ListItem { .. }));
+    let has_heading = events
+        .iter()
+        .any(|e| matches!(e, ParseEvent::Heading { .. }));
+    let has_code = events
+        .iter()
+        .any(|e| matches!(e, ParseEvent::CodeBlockStart { .. }));
+    let has_list = events
+        .iter()
+        .any(|e| matches!(e, ParseEvent::ListItem { .. }));
 
     assert!(has_heading);
     assert!(has_code);
@@ -539,7 +543,8 @@ fn test_render_with_custom_style() {
 
 #[test]
 fn test_render_at_different_widths() {
-    let content = "This is a paragraph that should wrap at different widths based on the terminal size.";
+    let content =
+        "This is a paragraph that should wrap at different widths based on the terminal size.";
 
     for width in [20, 40, 60, 80, 120] {
         let output = render_to_string(content, width);
