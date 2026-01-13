@@ -581,11 +581,12 @@ impl Parser {
             let bullet_str = caps.get(2).map(|m| m.as_str()).unwrap_or("");
             let content = caps.get(3).map(|m| m.as_str()).unwrap_or("");
 
-            let indent = indent_str.len();
+            // Use character count, not byte length, for proper multi-byte whitespace handling
+            let indent = indent_str.chars().count();
             let bullet = ListBullet::parse(bullet_str).unwrap_or(ListBullet::Dash);
 
-            // Update list_indent_text (width of bullet + space)
-            self.state.list_indent_text = bullet_str.len();
+            // Update list_indent_text (width of bullet + space) - use char count
+            self.state.list_indent_text = bullet_str.chars().count();
 
             let list_type = if bullet.is_ordered() {
                 ListType::Ordered
@@ -997,6 +998,36 @@ mod tests {
 
         // Should not panic and produce some output
         assert!(!events2.is_empty());
+    }
+
+    #[test]
+    fn test_list_item_indent_with_fullwidth_spaces() {
+        // BUG: List indent uses byte-based calculation.
+        // A list item with 1 fullwidth space (3 bytes) would be treated as
+        // having indent 3, which could incorrectly affect nesting level.
+        let mut parser = Parser::new();
+
+        // Top-level list item
+        let events1 = parser.parse_line("- top level");
+        assert!(events1.iter().any(|e| matches!(e, ParseEvent::ListItem { indent: 0, .. })));
+
+        // List item with 1 fullwidth space indent (3 bytes, 1 char)
+        // Should be treated as indent 1 (char-based), not indent 3 (byte-based)
+        let line2 = "　- nested item"; // 1 fullwidth space
+        let events2 = parser.parse_line(line2);
+
+        // Check that indent is character-based (1), not byte-based (3)
+        let list_item = events2.iter().find(|e| matches!(e, ParseEvent::ListItem { .. }));
+        assert!(list_item.is_some(), "Should have parsed list item");
+
+        if let Some(ParseEvent::ListItem { indent, .. }) = list_item {
+            // With byte-based: indent = 3
+            // With char-based: indent = 1
+            assert_eq!(
+                *indent, 1,
+                "Indent should be 1 (char-based), not 3 (byte-based)"
+            );
+        }
     }
 
     #[test]
