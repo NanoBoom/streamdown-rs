@@ -223,8 +223,9 @@ pub fn render_list_item(
     // Parse and render inline content with formatting (bold, italic, strikethrough, etc.)
     let rendered_content = render_inline_content(content, style);
 
-    // Calculate content width
-    let content_width = width.saturating_sub(left_margin.len() + content_indent);
+    // Calculate content width (use visible length for margin with ANSI codes)
+    let margin_width = streamdown_ansi::utils::visible_length(left_margin);
+    let content_width = width.saturating_sub(margin_width + content_indent);
 
     // Wrap the content
     let first_prefix = format!(
@@ -395,5 +396,48 @@ mod tests {
         assert_eq!(BULLETS[0], "•");
         assert_eq!(BULLETS[1], "◦");
         assert_eq!(BULLETS[2], "▪");
+    }
+
+    #[test]
+    fn test_list_item_with_ansi_margin() {
+        // BUG: left_margin.len() uses byte length instead of visible length.
+        // When left_margin contains ANSI codes (e.g., blockquote border),
+        // the content_width calculation is wrong, causing text to wrap too early.
+        use streamdown_ansi::utils::visible_length;
+        use streamdown_parser::ListBullet;
+
+        let mut state = ListState::new();
+
+        // Simulate blockquote border: "│ " with ANSI color codes
+        // The visible width is 2 (│ + space), but byte length is much larger
+        let margin = "\x1b[38;5;245m│\x1b[0m "; // colored │ + space
+        let margin_visible_len = visible_length(margin);
+        let margin_byte_len = margin.len();
+
+        assert_eq!(margin_visible_len, 2, "Visible length should be 2");
+        assert!(margin_byte_len > 10, "Byte length should be much larger due to ANSI codes");
+
+        // Short content that should fit on one line
+        // With correct calculation: content fits in (40 - 2 - 4) = 34 chars
+        // With buggy calculation: content fits in (40 - 15 - 4) = 21 chars
+        let content = "This content is 24 chars"; // 24 chars (fits in 34, not in 21)
+
+        let lines = render_list_item(
+            0,
+            &ListBullet::Dash,
+            content,
+            40,
+            margin,
+            &default_style(),
+            &mut state,
+        );
+
+        // With correct calculation, 30 chars should fit in 34 char width (1 line)
+        // With buggy calculation, 30 chars won't fit in 21 char width (multiple lines)
+        assert_eq!(
+            lines.len(), 1,
+            "Content should fit on one line with correct margin calculation, got {} lines: {:?}",
+            lines.len(), lines
+        );
     }
 }

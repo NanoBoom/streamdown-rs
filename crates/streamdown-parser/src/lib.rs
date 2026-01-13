@@ -346,17 +346,19 @@ impl Parser {
     /// This handles markdown that's indented in the input stream.
     fn strip_first_indent(&mut self, line: &str) -> String {
         // Set first_indent from the very first non-empty line
+        // Use character count, not byte count, to handle multi-byte whitespace
         if self.state.first_indent.is_none() && !line.trim().is_empty() {
-            let indent = line.len() - line.trim_start().len();
+            let indent = line.chars().take_while(|c| c.is_whitespace()).count();
             self.state.first_indent = Some(indent);
         }
 
         // Only strip if first_indent is > 0
         if let Some(first_indent) = self.state.first_indent {
             if first_indent > 0 {
-                let current_indent = line.len() - line.trim_start().len();
+                let current_indent = line.chars().take_while(|c| c.is_whitespace()).count();
                 if current_indent >= first_indent {
-                    return line[first_indent..].to_string();
+                    // Skip first_indent characters (not bytes) to avoid UTF-8 boundary issues
+                    return line.chars().skip(first_indent).collect();
                 }
             }
         }
@@ -435,7 +437,7 @@ impl Parser {
 
         // For space-indented code, check if we've dedented
         if self.state.in_code == Some(Code::Spaces) {
-            let indent = line.len() - line.trim_start().len();
+            let indent = line.chars().take_while(|c| c.is_whitespace()).count();
             if indent < 4 && !line.trim().is_empty() {
                 self.events.push(ParseEvent::CodeBlockEnd);
                 self.state.exit_code_block();
@@ -448,11 +450,7 @@ impl Parser {
 
         // Emit code line (strip indent for space-indented code)
         let code_line = if self.state.in_code == Some(Code::Spaces) {
-            if line.len() >= 4 {
-                line[4..].to_string()
-            } else {
-                line.to_string()
-            }
+            line.chars().skip(4).collect()
         } else {
             line.to_string()
         };
@@ -464,7 +462,7 @@ impl Parser {
         if let Some(caps) = CODE_FENCE_RE.captures(line) {
             let fence = caps.get(1).map(|m| m.as_str()).unwrap_or("```");
             let lang = caps.get(2).map(|m| m.as_str()).filter(|s| !s.is_empty());
-            let indent = line.len() - line.trim_start().len();
+            let indent = line.chars().take_while(|c| c.is_whitespace()).count();
 
             self.code_fence = Some(fence.to_string());
             self.state.code_indent = indent;
@@ -502,10 +500,9 @@ impl Parser {
                 language: Some("text".to_string()),
                 indent: 4,
             });
-            // Also emit the first line
-            let code_line = if line.len() >= 4 { &line[4..] } else { line };
-            self.events
-                .push(ParseEvent::CodeBlockLine(code_line.to_string()));
+            // Also emit the first line (skip 4 chars, not bytes)
+            let code_line: String = line.chars().skip(4).collect();
+            self.events.push(ParseEvent::CodeBlockLine(code_line));
             true
         } else {
             false
@@ -621,11 +618,12 @@ impl Parser {
             let bullet_str = caps.get(2).map(|m| m.as_str()).unwrap_or("");
             let content = caps.get(3).map(|m| m.as_str()).unwrap_or("");
 
-            let indent = indent_str.len();
+            // Use character count, not byte length, for proper multi-byte whitespace handling
+            let indent = indent_str.chars().count();
             let bullet = ListBullet::parse(bullet_str).unwrap_or(ListBullet::Dash);
 
-            // Update list_indent_text (width of bullet + space)
-            self.state.list_indent_text = bullet_str.len();
+            // Update list_indent_text (width of bullet + space) - use char count
+            self.state.list_indent_text = bullet_str.chars().count();
 
             let list_type = if bullet.is_ordered() {
                 ListType::Ordered
@@ -1021,5 +1019,127 @@ mod tests {
         .is_block());
         assert!(ParseEvent::Text("x".to_string()).is_inline());
         assert!(ParseEvent::Bold("x".to_string()).is_inline());
+    }
+
+    #[test]
+    fn test_first_indent_stripping_multibyte_whitespace() {
+        // This test reproduces the byte boundary bug in strip_first_indent.
+        //
+        // Line 1: "  # Hello" = 2 ASCII spaces (2 bytes) + "# Hello"
+        // Buggy code calculates first_indent = 2 (bytes)
+        //
+        // Line 2: "　World" = 1 fullwidth space (3 bytes) + "World"
+        // Buggy code checks: current_indent (3 bytes) >= first_indent (2 bytes) ✓
+        // Then tries: line[2..] which is INSIDE the fullwidth space!
+        // Panic: "byte index 2 is not a char boundary; it is inside '　'"
+        let mut parser = Parser::new();
+
+        // First line: 2 ASCII spaces = 2 bytes indent
+        let line1 = "  # Hello";
+        assert_eq!(line1.len() - line1.trim_start().len(), 2);
+        let _ = parser.parse_line(line1);
+
+        // Second line: 1 fullwidth space (3 bytes) - byte 2 is NOT a char boundary
+        let line2 = "　World";
+        assert!(!line2.is_char_boundary(2)); // Verify byte 2 is invalid
+
+        // This will panic with buggy code: "byte index 2 is not a char boundary"
+        let events = parser.parse_line(line2);
+
+        // Should produce valid output without panicking
+        assert!(!events.is_empty());
+    }
+
+    #[test]
+    fn test_space_indented_code_strip_with_fullwidth() {
+        // This test reproduces a panic when stripping indent from space-indented code.
+        //
+        // Scenario:
+        // 1. Enter space-indented code block with "    code" (4 ASCII spaces)
+        // 2. Continue with "　　more" (2 fullwidth spaces = 6 bytes)
+        // 3. Buggy code: line.len() >= 4 is true (6 >= 4), so it tries line[4..]
+        // 4. Panic: byte 4 is inside the second fullwidth space (bytes 3..6)
+        let mut parser = Parser::new();
+        parser.set_code_spaces(true);
+
+        // Empty line required before space-indented code
+        parser.parse_line("");
+
+        // First line: 4 ASCII spaces triggers space-indented code block
+        let line1 = "    first line of code";
+        let events1 = parser.parse_line(line1);
+        assert!(events1.iter().any(|e| matches!(e, ParseEvent::CodeBlockStart { .. })));
+
+        // Second line: 2 fullwidth spaces (6 bytes) - byte 4 is NOT a char boundary
+        // This would panic with buggy code: "byte index 4 is not a char boundary"
+        let line2 = "　　second line";
+        assert!(!line2.is_char_boundary(4)); // Verify byte 4 is invalid
+
+        let events2 = parser.parse_line(line2);
+
+        // Should not panic and produce some output
+        assert!(!events2.is_empty());
+    }
+
+    #[test]
+    fn test_list_item_indent_with_fullwidth_spaces() {
+        // BUG: List indent uses byte-based calculation.
+        // A list item with 1 fullwidth space (3 bytes) would be treated as
+        // having indent 3, which could incorrectly affect nesting level.
+        let mut parser = Parser::new();
+
+        // Top-level list item
+        let events1 = parser.parse_line("- top level");
+        assert!(events1.iter().any(|e| matches!(e, ParseEvent::ListItem { indent: 0, .. })));
+
+        // List item with 1 fullwidth space indent (3 bytes, 1 char)
+        // Should be treated as indent 1 (char-based), not indent 3 (byte-based)
+        let line2 = "　- nested item"; // 1 fullwidth space
+        let events2 = parser.parse_line(line2);
+
+        // Check that indent is character-based (1), not byte-based (3)
+        let list_item = events2.iter().find(|e| matches!(e, ParseEvent::ListItem { .. }));
+        assert!(list_item.is_some(), "Should have parsed list item");
+
+        if let Some(ParseEvent::ListItem { indent, .. }) = list_item {
+            // With byte-based: indent = 3
+            // With char-based: indent = 1
+            assert_eq!(
+                *indent, 1,
+                "Indent should be 1 (char-based), not 3 (byte-based)"
+            );
+        }
+    }
+
+    #[test]
+    fn test_space_indented_code_dedent_with_fullwidth() {
+        // BUG: Dedent detection uses byte-based indent calculation.
+        // A line with 2 fullwidth spaces (6 bytes) would NOT trigger dedent
+        // because 6 >= 4, but it should because 2 chars < 4 chars.
+        let mut parser = Parser::new();
+        parser.set_code_spaces(true);
+
+        // Empty line required before space-indented code
+        parser.parse_line("");
+
+        // Enter code block with 4 ASCII spaces
+        let events1 = parser.parse_line("    code line");
+        assert!(events1.iter().any(|e| matches!(e, ParseEvent::CodeBlockStart { .. })));
+
+        // Line with 2 fullwidth spaces (6 bytes, 2 chars) should EXIT code block
+        // because 2 chars < 4 required indent
+        let line2 = "　　not code anymore";
+        let byte_indent = line2.len() - line2.trim_start().len();
+        let char_indent = line2.chars().take_while(|c| c.is_whitespace()).count();
+        assert_eq!(byte_indent, 6); // 2 fullwidth spaces = 6 bytes
+        assert_eq!(char_indent, 2); // but only 2 characters
+
+        let events2 = parser.parse_line(line2);
+
+        // Should have exited code block (CodeBlockEnd event)
+        assert!(
+            events2.iter().any(|e| matches!(e, ParseEvent::CodeBlockEnd)),
+            "Should have exited code block with only 2-char indent"
+        );
     }
 }
