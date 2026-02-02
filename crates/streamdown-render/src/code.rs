@@ -6,7 +6,7 @@
 //! - Line wrapping for long lines (optional)
 //! - Language labels
 
-use crate::{bg_color, fg_color, RenderStyle};
+use crate::{RenderStyle, bg_color, fg_color};
 use streamdown_ansi::codes::RESET;
 use streamdown_syntax::{HighlightState, Highlighter};
 

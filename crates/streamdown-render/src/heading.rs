@@ -8,9 +8,9 @@
 //! - h5: Plain text
 //! - h6: Grey/dimmed
 
+use crate::RenderStyle;
 use crate::fg_color;
 use crate::text::simple_wrap;
-use crate::RenderStyle;
 use streamdown_ansi::codes::{BOLD_OFF, BOLD_ON, RESET};
 use streamdown_ansi::utils::visible_length;
 

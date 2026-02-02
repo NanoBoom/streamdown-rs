@@ -34,15 +34,15 @@ pub mod list;
 pub mod table;
 pub mod text;
 
-pub use code::{code_wrap, CodeBlockState, CODEPAD_BOTTOM, CODEPAD_TOP};
+pub use code::{CODEPAD_BOTTOM, CODEPAD_TOP, CodeBlockState, code_wrap};
 pub use features::{
-    copy_to_clipboard, is_tty, savebrace, savebrace_clear, savebrace_last, savebrace_path,
-    savebrace_read, terminal_size, terminal_width, RenderFeatures,
+    RenderFeatures, copy_to_clipboard, is_tty, savebrace, savebrace_clear, savebrace_last,
+    savebrace_path, savebrace_read, terminal_size, terminal_width,
 };
 pub use heading::render_heading;
-pub use list::{render_list_item, ListState, BULLETS};
-pub use table::{render_table_row, render_table_separator, TableState};
-pub use text::{simple_wrap, split_text, text_wrap, WrappedText};
+pub use list::{BULLETS, ListState, render_list_item};
+pub use table::{TableState, render_table_row, render_table_separator};
+pub use text::{WrappedText, simple_wrap, split_text, text_wrap};
 
 use std::io::Write;
 

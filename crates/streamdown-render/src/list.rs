@@ -7,14 +7,14 @@
 //! - Proper text wrapping for long items
 //! - Inline formatting (bold, italic, strikethrough, etc.)
 
-use crate::text::text_wrap;
 use crate::RenderStyle;
+use crate::text::text_wrap;
 use crate::{bg_color, fg_color};
 use streamdown_ansi::codes::{
     BOLD_OFF, BOLD_ON, DIM_ON, ITALIC_OFF, ITALIC_ON, RESET, STRIKEOUT_OFF, STRIKEOUT_ON,
     UNDERLINE_OFF, UNDERLINE_ON,
 };
-use streamdown_parser::{decode_html_entities, InlineElement, InlineParser, ListBullet};
+use streamdown_parser::{InlineElement, InlineParser, ListBullet, decode_html_entities};
 
 /// Bullet characters for different nesting levels.
 pub const BULLETS: [&str; 4] = [

@@ -2,8 +2,8 @@
 //!
 //! Renders markdown tables with full-width columns and styled borders.
 
-use crate::text::text_wrap;
 use crate::RenderStyle;
+use crate::text::text_wrap;
 use crate::{bg_color, fg_color};
 use streamdown_ansi::codes::RESET;
 use streamdown_ansi::utils::visible_length;
