@@ -15,7 +15,7 @@ use std::path::Path;
 
 use streamdown_config::{ComputedStyle, Config};
 use streamdown_parser::{ParseEvent, Parser as MarkdownParser};
-use streamdown_plugin::PluginManager;
+use streamdown_plugin::{PluginAction, PluginManager};
 use streamdown_render::{RenderFeatures, RenderStyle, Renderer};
 
 fn main() {
@@ -168,16 +168,24 @@ fn run_stdin(cli: &Cli, style: &ComputedStyle, features: &RenderFeatures) -> io:
         trace!("Input line: {}", line);
 
         // Check plugins first
-        if let Some(plugin_output) = plugin_manager.process_line(&line, &parse_state, style) {
-            for output_line in plugin_output {
-                writeln!(output, "{}", output_line)?;
-            }
-            // Flush output
-            io::stdout().write_all(&output)?;
-            io::stdout().flush()?;
-            output.clear();
-            continue;
-        }
+        let effective_line =
+            if let Some(action) = plugin_manager.process_line(&line, &parse_state, style) {
+                match action {
+                    PluginAction::Output(plugin_output) => {
+                        for output_line in plugin_output {
+                            writeln!(output, "{}", output_line)?;
+                        }
+                        // Flush output
+                        io::stdout().write_all(&output)?;
+                        io::stdout().flush()?;
+                        output.clear();
+                        continue;
+                    }
+                    PluginAction::Rewrite(rewritten) => rewritten,
+                }
+            } else {
+                line
+            };
 
         // Parse and render
         {
@@ -186,7 +194,7 @@ fn run_stdin(cli: &Cli, style: &ComputedStyle, features: &RenderFeatures) -> io:
             if !no_highlight {
                 renderer.set_theme(&theme);
             }
-            emit_line(&line, &mut parser, &mut renderer, cli)?;
+            emit_line(&effective_line, &mut parser, &mut renderer, cli)?;
         }
 
         // Flush output
@@ -227,12 +235,20 @@ fn run_files(cli: &Cli, style: &ComputedStyle, features: &RenderFeatures) -> io:
             let line = line?;
 
             // Check plugins first
-            if let Some(plugin_output) = plugin_manager.process_line(&line, &parse_state, style) {
-                for output_line in plugin_output {
-                    writeln!(output, "{}", output_line)?;
-                }
-                continue;
-            }
+            let effective_line =
+                if let Some(action) = plugin_manager.process_line(&line, &parse_state, style) {
+                    match action {
+                        PluginAction::Output(plugin_output) => {
+                            for output_line in plugin_output {
+                                writeln!(output, "{}", output_line)?;
+                            }
+                            continue;
+                        }
+                        PluginAction::Rewrite(rewritten) => rewritten,
+                    }
+                } else {
+                    line
+                };
 
             // Parse and render
             {
@@ -241,7 +257,7 @@ fn run_files(cli: &Cli, style: &ComputedStyle, features: &RenderFeatures) -> io:
                 if !no_highlight {
                     renderer.set_theme(&theme);
                 }
-                emit_line(&line, &mut parser, &mut renderer, cli)?;
+                emit_line(&effective_line, &mut parser, &mut renderer, cli)?;
             }
         }
 
@@ -448,16 +464,23 @@ fn process_master_output(
                 }
 
                 // Check plugins
-                if let Some(plugin_output) = plugin_manager.process_line(&line, parse_state, style)
-                {
-                    for output_line in plugin_output {
-                        writeln!(output, "{}", output_line)?;
-                    }
-                    io::stdout().write_all(output)?;
-                    io::stdout().flush()?;
-                    output.clear();
-                    continue;
-                }
+                let effective_line =
+                    if let Some(action) = plugin_manager.process_line(&line, parse_state, style) {
+                        match action {
+                            PluginAction::Output(plugin_output) => {
+                                for output_line in plugin_output {
+                                    writeln!(output, "{}", output_line)?;
+                                }
+                                io::stdout().write_all(output)?;
+                                io::stdout().flush()?;
+                                output.clear();
+                                continue;
+                            }
+                            PluginAction::Rewrite(rewritten) => rewritten,
+                        }
+                    } else {
+                        line
+                    };
 
                 // Parse and render
                 {
@@ -467,7 +490,7 @@ fn process_master_output(
                     if !no_highlight {
                         renderer.set_theme(theme);
                     }
-                    emit_line(&line, parser, &mut renderer, cli)?;
+                    emit_line(&effective_line, parser, &mut renderer, cli)?;
                 }
 
                 // Flush output

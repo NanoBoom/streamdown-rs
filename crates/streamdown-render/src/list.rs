@@ -200,8 +200,7 @@ pub fn render_list_item(
 
     // Calculate marker
     let marker = match bullet {
-        ListBullet::Ordered(_) => {
-            let num = list_state.next_number();
+        ListBullet::Ordered(num) => {
             format!("{}.", num)
         }
         ListBullet::PlusExpand => "⊞".to_string(), // Squared plus

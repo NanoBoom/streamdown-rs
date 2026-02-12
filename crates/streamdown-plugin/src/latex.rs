@@ -59,7 +59,7 @@ impl Plugin for LatexPlugin {
             // Check for inline math
             let converted = convert_inline_math(line);
             if converted != line {
-                return Some(ProcessResult::Lines(vec![converted]));
+                return Some(ProcessResult::Rewrite(converted));
             }
         }
 
@@ -631,9 +631,9 @@ mod tests {
         let style = ComputedStyle::default();
 
         let result = plugin.process_line("The value $x^2$ is important", &state, &style);
-        assert!(matches!(result, Some(ProcessResult::Lines(_))));
-        if let Some(ProcessResult::Lines(lines)) = result {
-            assert!(lines[0].contains("x²"));
+        assert!(matches!(result, Some(ProcessResult::Rewrite(_))));
+        if let Some(ProcessResult::Rewrite(line)) = result {
+            assert!(line.contains("x²"));
         }
     }
 

@@ -52,8 +52,19 @@ use streamdown_core::state::ParseState;
 pub enum ProcessResult {
     /// Emit these formatted lines instead of normal processing
     Lines(Vec<String>),
+    /// Rewrite the line and continue normal markdown processing
+    Rewrite(String),
     /// Plugin is buffering, continue without further processing
     Continue,
+}
+
+/// Action returned by the plugin manager.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PluginAction {
+    /// Output these lines directly, skip normal processing
+    Output(Vec<String>),
+    /// Rewrite the line and continue normal markdown processing
+    Rewrite(String),
 }
 
 impl ProcessResult {
@@ -172,13 +183,14 @@ impl PluginManager {
     ///
     /// # Returns
     /// - `None`: No plugin handled the line, continue normal processing
-    /// - `Some(vec)`: Plugin produced these lines, skip normal processing
+    /// - `Some(PluginAction::Output(vec))`: Plugin produced these lines, skip normal processing
+    /// - `Some(PluginAction::Rewrite(line))`: Plugin rewrote the line, continue normal processing with it
     pub fn process_line(
         &mut self,
         line: &str,
         state: &ParseState,
         style: &ComputedStyle,
-    ) -> Option<Vec<String>> {
+    ) -> Option<PluginAction> {
         // If there's an active plugin, give it priority
         if let Some(idx) = self.active_plugin {
             let plugin = &mut self.plugins[idx];
@@ -186,11 +198,15 @@ impl PluginManager {
                 Some(ProcessResult::Lines(lines)) => {
                     // Plugin finished, clear active
                     self.active_plugin = None;
-                    return Some(lines);
+                    return Some(PluginAction::Output(lines));
+                }
+                Some(ProcessResult::Rewrite(rewritten)) => {
+                    self.active_plugin = None;
+                    return Some(PluginAction::Rewrite(rewritten));
                 }
                 Some(ProcessResult::Continue) => {
                     // Plugin still active
-                    return Some(vec![]);
+                    return Some(PluginAction::Output(vec![]));
                 }
                 None => {
                     // Plugin released priority
@@ -203,12 +219,15 @@ impl PluginManager {
         for (idx, plugin) in self.plugins.iter_mut().enumerate() {
             match plugin.process_line(line, state, style) {
                 Some(ProcessResult::Lines(lines)) => {
-                    return Some(lines);
+                    return Some(PluginAction::Output(lines));
+                }
+                Some(ProcessResult::Rewrite(rewritten)) => {
+                    return Some(PluginAction::Rewrite(rewritten));
                 }
                 Some(ProcessResult::Continue) => {
                     // This plugin is now active
                     self.active_plugin = Some(idx);
-                    return Some(vec![]);
+                    return Some(PluginAction::Output(vec![]));
                 }
                 None => continue,
             }
@@ -400,7 +419,10 @@ mod tests {
 
         // Echo plugin should handle this
         let result = manager.process_line("!echo hello world", &state, &style);
-        assert_eq!(result, Some(vec!["hello world".to_string()]));
+        assert_eq!(
+            result,
+            Some(PluginAction::Output(vec!["hello world".to_string()]))
+        );
 
         // Echo plugin should not handle this
         let result = manager.process_line("normal line", &state, &style);
@@ -417,21 +439,24 @@ mod tests {
 
         // Start buffering
         let result = manager.process_line("!start", &state, &style);
-        assert_eq!(result, Some(vec![]));
+        assert_eq!(result, Some(PluginAction::Output(vec![])));
         assert!(manager.has_active_plugin());
 
         // Buffer lines
         let result = manager.process_line("line 1", &state, &style);
-        assert_eq!(result, Some(vec![]));
+        assert_eq!(result, Some(PluginAction::Output(vec![])));
 
         let result = manager.process_line("line 2", &state, &style);
-        assert_eq!(result, Some(vec![]));
+        assert_eq!(result, Some(PluginAction::Output(vec![])));
 
         // End buffering
         let result = manager.process_line("!end", &state, &style);
         assert_eq!(
             result,
-            Some(vec!["line 1".to_string(), "line 2".to_string()])
+            Some(PluginAction::Output(vec![
+                "line 1".to_string(),
+                "line 2".to_string()
+            ]))
         );
         assert!(!manager.has_active_plugin());
     }
