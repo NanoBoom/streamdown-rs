@@ -152,7 +152,7 @@ fn run_stdin(cli: &Cli, style: &ComputedStyle, features: &RenderFeatures) -> io:
 
     let stdin = io::stdin();
     let width = cli.effective_width();
-    let render_style = RenderStyle::from_computed(style);
+    let render_style = RenderStyle::default();
     let theme = cli.theme.clone();
     let no_highlight = cli.no_highlight;
 
@@ -208,7 +208,7 @@ fn run_stdin(cli: &Cli, style: &ComputedStyle, features: &RenderFeatures) -> io:
 /// Process input files.
 fn run_files(cli: &Cli, style: &ComputedStyle, features: &RenderFeatures) -> io::Result<()> {
     let width = cli.effective_width();
-    let render_style = RenderStyle::from_computed(style);
+    let render_style = RenderStyle::default();
     let theme = cli.theme.clone();
     let no_highlight = cli.no_highlight;
 
@@ -278,7 +278,7 @@ fn run_exec(
     info!("Executing with PTY: {}", exec_cmd);
 
     let width = cli.effective_width();
-    let render_style = RenderStyle::from_computed(style);
+    let render_style = RenderStyle::default();
     let theme = cli.theme.clone();
     let no_highlight = cli.no_highlight;
 
