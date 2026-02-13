@@ -237,9 +237,23 @@ impl<W: Write> Renderer<W> {
         r
     }
 
-    /// Set the syntax highlighting theme.
+    /// Set the syntax highlighting theme by name.
     pub fn set_theme(&mut self, theme: &str) {
         self.highlighter.set_theme(theme);
+    }
+
+    /// Set a custom syntax highlighting theme object directly.
+    pub fn set_custom_theme(&mut self, theme: streamdown_syntax::Theme) {
+        self.highlighter.set_custom_theme(theme);
+    }
+
+    /// Override the syntax highlighter's background color.
+    ///
+    /// When set, token background colors are stripped from syntax highlighting
+    /// output, leaving only foreground colors. The code block background is
+    /// then controlled solely by RenderStyle.code_bg.
+    pub fn set_highlight_background(&mut self, bg: Option<(u8, u8, u8)>) {
+        self.highlighter.set_background(bg);
     }
 
     /// Set the render style.

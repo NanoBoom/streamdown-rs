@@ -32,9 +32,10 @@
 mod languages;
 
 pub use languages::{LANGUAGE_ALIASES, aliases_for, all_aliases, language_alias};
+pub use syntect::highlighting::Theme;
 
 use syntect::easy::HighlightLines;
-use syntect::highlighting::{Color, FontStyle, Style, Theme, ThemeSet};
+use syntect::highlighting::{Color, FontStyle, Style, ThemeSet};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
 use syntect::util::as_24_bit_terminal_escaped;
 
@@ -106,9 +107,19 @@ impl Highlighter {
         &self.theme_set
     }
 
-    /// Set the current theme.
+    /// Set the current theme by name (must exist in built-in theme set).
     pub fn set_theme(&mut self, theme_name: &str) {
         self.theme_name = theme_name.to_string();
+    }
+
+    /// Set a custom theme object directly.
+    ///
+    /// This inserts the theme into the internal theme set with a reserved key,
+    /// so it can be used for syntax highlighting without name-based lookup.
+    pub fn set_custom_theme(&mut self, theme: Theme) {
+        const CUSTOM_KEY: &str = "__custom__";
+        self.theme_set.themes.insert(CUSTOM_KEY.to_string(), theme);
+        self.theme_name = CUSTOM_KEY.to_string();
     }
 
     /// Get the current theme name.
