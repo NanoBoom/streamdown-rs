@@ -160,6 +160,22 @@ impl Default for RenderStyle {
     }
 }
 
+/// Persistent state that must survive across renderer instances.
+///
+/// When the renderer is recreated per-line (e.g., for streaming output),
+/// this state must be carried over to maintain correct rendering of
+/// multi-line constructs like blockquotes, lists, and tables.
+#[derive(Debug, Clone, Default)]
+pub struct RenderState {
+    pub in_blockquote: bool,
+    pub blockquote_depth: usize,
+    pub list_state: ListState,
+    pub table_state: TableState,
+    pub code_language: Option<String>,
+    pub code_buffer: String,
+    pub column: usize,
+}
+
 /// Terminal renderer for markdown.
 pub struct Renderer<W: Write> {
     /// Output writer
@@ -239,6 +255,30 @@ impl<W: Write> Renderer<W> {
     /// Enable or disable pretty code block padding.
     pub fn set_pretty_pad(&mut self, enabled: bool) {
         self.features.pretty_pad = enabled;
+    }
+
+    /// Save persistent state for carrying across renderer instances.
+    pub fn save_state(&self) -> RenderState {
+        RenderState {
+            in_blockquote: self.in_blockquote,
+            blockquote_depth: self.blockquote_depth,
+            list_state: self.list_state.clone(),
+            table_state: self.table_state.clone(),
+            code_language: self.code_language.clone(),
+            code_buffer: self.code_buffer.clone(),
+            column: self.column,
+        }
+    }
+
+    /// Restore persistent state from a previous renderer instance.
+    pub fn restore_state(&mut self, state: RenderState) {
+        self.in_blockquote = state.in_blockquote;
+        self.blockquote_depth = state.blockquote_depth;
+        self.list_state = state.list_state;
+        self.table_state = state.table_state;
+        self.code_language = state.code_language;
+        self.code_buffer = state.code_buffer;
+        self.column = state.column;
     }
 
     /// Enable or disable clipboard integration.
@@ -521,18 +561,26 @@ impl<W: Write> Renderer<W> {
 
             ParseEvent::BlockquoteLine(text) => {
                 let margin = self.left_margin();
-                // Wrap text to fit
-                let wrapped = text_wrap(
-                    text,
-                    self.current_width(),
-                    0,
-                    &margin,
-                    &margin,
-                    false,
-                    false,
-                );
-                for line in wrapped.lines {
-                    self.writeln(&line)?;
+
+                if text.trim().is_empty() {
+                    // Empty blockquote line: just output the margin prefix
+                    self.writeln(&margin)?;
+                } else {
+                    // Parse inline formatting (bold, italic, code, etc.)
+                    let rendered = list::render_inline_content(text, &self.style);
+                    // Wrap text to fit
+                    let wrapped = text_wrap(
+                        &rendered,
+                        self.current_width(),
+                        0,
+                        &margin,
+                        &margin,
+                        false,
+                        true,
+                    );
+                    for line in wrapped.lines {
+                        self.writeln(&line)?;
+                    }
                 }
             }
 

@@ -161,6 +161,7 @@ fn run_stdin(cli: &Cli, style: &ComputedStyle, features: &RenderFeatures) -> io:
     let mut parser = MarkdownParser::new();
     let mut plugin_manager = PluginManager::with_builtins();
     let parse_state = streamdown_core::state::ParseState::new();
+    let mut render_state = streamdown_render::RenderState::default();
 
     // Read stdin line by line for streaming
     for line in stdin.lock().lines() {
@@ -194,7 +195,9 @@ fn run_stdin(cli: &Cli, style: &ComputedStyle, features: &RenderFeatures) -> io:
             if !no_highlight {
                 renderer.set_theme(&theme);
             }
+            renderer.restore_state(render_state);
             emit_line(&effective_line, &mut parser, &mut renderer, cli)?;
+            render_state = renderer.save_state();
         }
 
         // Flush output
@@ -230,6 +233,7 @@ fn run_files(cli: &Cli, style: &ComputedStyle, features: &RenderFeatures) -> io:
         let mut parser = MarkdownParser::new();
         let mut plugin_manager = PluginManager::with_builtins();
         let parse_state = streamdown_core::state::ParseState::new();
+        let mut render_state = streamdown_render::RenderState::default();
 
         for line in reader.lines() {
             let line = line?;
@@ -257,7 +261,9 @@ fn run_files(cli: &Cli, style: &ComputedStyle, features: &RenderFeatures) -> io:
                 if !no_highlight {
                     renderer.set_theme(&theme);
                 }
+                renderer.restore_state(render_state);
                 emit_line(&effective_line, &mut parser, &mut renderer, cli)?;
+                render_state = renderer.save_state();
             }
         }
 
@@ -314,6 +320,7 @@ fn run_exec(
     // Line buffer for accumulating output
     let mut line_buffer = String::new();
     let timeout = Duration::from_millis(100);
+    let mut render_state = streamdown_render::RenderState::default();
 
     // Main loop
     while session.is_alive() {
@@ -355,6 +362,7 @@ fn run_exec(
                         no_highlight,
                         features,
                         cli,
+                        &mut render_state,
                     )?;
                 }
             }
@@ -375,6 +383,7 @@ fn run_exec(
                     no_highlight,
                     features,
                     cli,
+                    &mut render_state,
                 )?;
             }
             PollResult::Timeout => {
@@ -431,6 +440,7 @@ fn process_master_output(
     no_highlight: bool,
     features: &RenderFeatures,
     cli: &Cli,
+    render_state: &mut streamdown_render::RenderState,
 ) -> io::Result<()> {
     let mut buf = [0u8; 1024];
 
@@ -490,7 +500,9 @@ fn process_master_output(
                     if !no_highlight {
                         renderer.set_theme(theme);
                     }
+                    renderer.restore_state(render_state.clone());
                     emit_line(&effective_line, parser, &mut renderer, cli)?;
+                    *render_state = renderer.save_state();
                 }
 
                 // Flush output

@@ -100,7 +100,7 @@ impl ListState {
 ///
 /// Parses markdown inline formatting (bold, italic, strikethrough, etc.)
 /// and renders them with appropriate ANSI escape codes.
-fn render_inline_content(content: &str, style: &RenderStyle) -> String {
+pub fn render_inline_content(content: &str, style: &RenderStyle) -> String {
     let mut parser = InlineParser::new();
     let elements = parser.parse(content);
 
