@@ -140,12 +140,15 @@ pub fn render_inline_content(content: &str, style: &RenderStyle) -> String {
             }
             InlineElement::Code(text) => {
                 // Inline code with background
+                // Use NBSP (\u{00A0}) for padding so split_text won't break
+                // the code span into separate words, which would cause ANSI
+                // style leaking and lost padding.
                 let bg = bg_color(&style.code_bg);
                 result.push_str(&bg);
                 result.push_str(DIM_ON);
-                result.push(' ');
+                result.push('\u{00A0}');
                 result.push_str(&text);
-                result.push(' ');
+                result.push('\u{00A0}');
                 result.push_str(RESET);
             }
             InlineElement::Link { text, url } => {
@@ -442,6 +445,82 @@ mod tests {
             "Content should fit on one line with correct margin calculation, got {} lines: {:?}",
             lines.len(),
             lines
+        );
+    }
+
+    #[test]
+    fn test_inline_code_not_stuck_together() {
+        // When a line has multiple inline code spans, they should be rendered
+        // separately with the text between them preserved. Previously,
+        // split_text would break the ANSI-styled code spans on their padding
+        // spaces, causing style leaking and lost separation.
+        use streamdown_ansi::utils::visible;
+
+        let content = "如果 `int64` 也会溢出，使用 `math/big` 包";
+        let rendered = render_inline_content(content, &default_style());
+        let visible_text = visible(&rendered);
+
+        // The visible text should contain both code spans with text between them
+        assert!(
+            visible_text.contains("int64"),
+            "Should contain int64: {:?}",
+            visible_text
+        );
+        assert!(
+            visible_text.contains("math/big"),
+            "Should contain math/big: {:?}",
+            visible_text
+        );
+        // The text between the two code spans must be preserved
+        assert!(
+            visible_text.contains("也会溢出"),
+            "Text between code spans should be preserved: {:?}",
+            visible_text
+        );
+    }
+
+    #[test]
+    fn test_inline_code_survives_text_wrap() {
+        // Verify that inline code spans survive text_wrap without losing
+        // their ANSI styling or padding.
+        use crate::text::text_wrap;
+        use streamdown_ansi::utils::visible;
+
+        let content = "使用 `int64` 溢出，需要 `math/big` 包";
+        let rendered = render_inline_content(content, &default_style());
+
+        // Wrap at a wide width so no actual wrapping occurs
+        let wrapped = text_wrap(&rendered, 120, 0, "", "", false, true);
+        assert!(!wrapped.is_empty());
+
+        let line = &wrapped.lines[0];
+        let visible_text = visible(line);
+
+        // Both code spans and the text between them should be intact
+        assert!(
+            visible_text.contains("int64"),
+            "int64 should survive text_wrap: {:?}",
+            visible_text
+        );
+        assert!(
+            visible_text.contains("math/big"),
+            "math/big should survive text_wrap: {:?}",
+            visible_text
+        );
+        assert!(
+            visible_text.contains("溢出"),
+            "Text between code spans should survive: {:?}",
+            visible_text
+        );
+
+        // The two code spans should NOT be adjacent (text between them preserved)
+        let int64_pos = visible_text.find("int64").unwrap();
+        let mathbig_pos = visible_text.find("math/big").unwrap();
+        assert!(
+            mathbig_pos > int64_pos + 10,
+            "Code spans should not be stuck together, positions: int64={}, math/big={}",
+            int64_pos,
+            mathbig_pos
         );
     }
 }

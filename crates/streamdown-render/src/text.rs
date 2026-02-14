@@ -64,7 +64,7 @@ pub fn split_text(text: &str) -> Vec<String> {
             continue;
         }
 
-        if ch.is_whitespace() {
+        if ch.is_whitespace() && ch != '\u{00A0}' {
             if !current.is_empty() {
                 words.push(std::mem::take(&mut current));
             }
@@ -493,5 +493,40 @@ mod tests {
                 visible(line),
             );
         }
+    }
+
+    #[test]
+    fn test_split_text_preserves_nbsp() {
+        // NBSP (\u{00A0}) should NOT be treated as a word boundary.
+        // This is used for inline code padding to keep ANSI-styled code
+        // spans as atomic units during text wrapping.
+        let text = "before\u{00A0}code\u{00A0}after";
+        let words = split_text(text);
+        assert_eq!(words.len(), 1, "NBSP should not split words: {:?}", words);
+        assert_eq!(words[0], "before\u{00A0}code\u{00A0}after");
+    }
+
+    #[test]
+    fn test_split_text_nbsp_with_ansi() {
+        // Inline code rendered as: {bg}{dim}\u{00A0}code\u{00A0}{reset}
+        let text = "text \x1b[48;2;0;0;0m\x1b[2m\u{00A0}int64\u{00A0}\x1b[0m more";
+        let words = split_text(text);
+        // Should split into: "text", "{bg}{dim}\u{00A0}int64\u{00A0}{reset}", "more"
+        assert_eq!(words.len(), 3, "Should be 3 words: {:?}", words);
+        assert!(
+            words[1].contains("int64"),
+            "Second word should contain int64: {:?}",
+            words[1]
+        );
+        assert!(
+            words[1].contains("\x1b[48;2;0;0;0m"),
+            "Second word should contain bg color: {:?}",
+            words[1]
+        );
+        assert!(
+            words[1].contains("\x1b[0m"),
+            "Second word should contain reset: {:?}",
+            words[1]
+        );
     }
 }
