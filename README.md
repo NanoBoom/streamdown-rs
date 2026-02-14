@@ -11,14 +11,18 @@ This is a Rust port of [Streamdown](https://github.com/kristopolous/Streamdown) 
 ## ✨ Features
 
 - **Streaming rendering** - Renders markdown as it arrives, perfect for LLM output
-- **Syntax highlighting** - Full language support via [syntect](https://github.com/trishume/syntect)
+- **Stateful syntax highlighting** - Accurate multi-line token highlighting via [syntect](https://github.com/trishume/syntect) with persistent parse state
 - **Beautiful output** - Pretty tables, lists, code blocks with box drawing
+- **Think blocks** - Renders LLM `<think>` blocks with distinct styling, including full code block support inside think blocks
+- **Persistent render state** - Multi-line constructs (blockquotes, lists, tables, code blocks) render correctly across streaming chunks
+- **Custom themes** - Pass syntect `Theme` objects directly or use built-in themes; control highlight background independently
 - **PTY exec mode** - Run commands and render their markdown output
 - **Clipboard integration** - Copy code blocks via OSC 52
 - **Savebrace** - Save code blocks to temp files for shell access
-- **LaTeX support** - Convert LaTeX math to Unicode symbols
+- **LaTeX support** - Convert LaTeX math to Unicode symbols with `ProcessResult::Rewrite` preserving inline markdown formatting
 - **Configurable** - TOML configuration for colors and behavior
 - **Cross-platform** - Full Unix support, partial Windows support
+- **Cloneable parser** - `Parser`, `InlineParser`, and `Tokenizer` implement `Clone` for state snapshotting
 
 ## 📦 Installation
 
@@ -68,22 +72,30 @@ sd -e "llm query 'explain rust lifetimes'"
 ## 📖 Usage
 
 ```
-sd - Streamdown: A streaming markdown renderer for terminals
+Streamdown - A streaming markdown renderer for modern terminals.
 
-USAGE:
-    sd [OPTIONS] [FILE]
+Usage: sd [OPTIONS] [FILE]...
 
-ARGS:
-    <FILE>    Markdown file to render (reads from stdin if omitted)
+Arguments:
+  [FILE]...              Input files to process (reads from stdin if not provided)
 
-OPTIONS:
-    -e, --exec <CMD>       Execute command and render its output
-    -w, --width <WIDTH>    Terminal width (default: auto-detect)
-    -c, --config <FILE>    Custom config file path
-    -s, --scrape <DIR>     Save code blocks to directory
-    -d, --debug            Enable debug output
-    -h, --help             Print help information
-    -V, --version          Print version information
+Options:
+  -l, --loglevel <LOG_LEVEL>  Set the logging level (trace, debug, info, warn, error) [default: warn]
+  -b, --base <BASE>           Set the HSV base color: h,s,v (e.g., "0.6,0.5,0.5")
+  -c, --config <CONFIG>       Use a custom config file or inline TOML
+  -w, --width <WIDTH>         Set the output width (0 = auto-detect) [default: 0]
+  -e, --exec <CMD>            Wrap a program for proper streaming I/O handling
+  -p, --prompt <PROMPT>       PCRE regex for prompt detection (with --exec) [default: ^.*>\s+$]
+  -s, --scrape <DIR>          Scrape code snippets to a directory
+      --no-highlight          Disable syntax highlighting
+      --no-pretty-pad         Disable pretty code block borders (use spaces instead)
+      --pretty-broken         Enable code line wrapping (breaks copy-paste)
+      --clipboard             Enable clipboard integration (OSC 52)
+      --savebrace             Enable savebrace (save code to /tmp/savebrace)
+      --paths                 Show configuration paths and exit
+      --theme <THEME>         Syntax highlighting theme [default: base16-ocean.dark]
+  -h, --help                  Print help
+  -V, --version               Print version
 ```
 
 ## ⚙️ Configuration
@@ -190,10 +202,17 @@ Rendered with proper indentation and bullets.
 ```markdown
 <think>
 Internal reasoning that should be visually distinct...
+
+```python
+# Code blocks work inside think blocks too
+def reason():
+    return "supported"
+```
+
 </think>
 ```
 
-Special rendering for LLM "thinking" output.
+Special rendering for LLM "thinking" output with text wrapping, inline formatting, and full code block support (syntax highlighting, background, box drawing).
 
 ## 🔌 Programmatic Usage
 
@@ -205,22 +224,73 @@ use streamdown_render::Renderer;
 
 fn main() {
     let markdown = "# Hello\n\nThis is **bold** text.";
-    
+
     let mut output = Vec::new();
     let mut parser = Parser::new();
-    
+
     {
         let mut renderer = Renderer::new(&mut output, 80);
-        
+
         for line in markdown.lines() {
             for event in parser.parse_line(line) {
                 renderer.render_event(&event).unwrap();
             }
         }
     }
-    
+
     print!("{}", String::from_utf8(output).unwrap());
 }
+```
+
+### Streaming with Persistent State
+
+For streaming scenarios where the renderer is recreated per chunk, use `RenderState` to carry state across instances:
+
+```rust
+use streamdown_parser::Parser;
+use streamdown_render::{Renderer, RenderState};
+
+let mut parser = Parser::new();
+let mut render_state = RenderState::default();
+
+for chunk in stream {
+    let mut output = Vec::new();
+    let mut renderer = Renderer::new(&mut output, 80);
+    renderer.restore_state(render_state.clone());
+
+    for event in parser.parse_line(&chunk) {
+        renderer.render_event(&event).unwrap();
+    }
+
+    render_state = renderer.save_state();
+    print!("{}", String::from_utf8(output).unwrap());
+}
+```
+
+### Custom Themes and Highlight Background
+
+```rust
+use streamdown_render::Renderer;
+use streamdown_syntax::Theme;
+
+let mut renderer = Renderer::new(&mut output, 80);
+
+// Set a custom syntect Theme object directly
+renderer.set_custom_theme(my_theme);
+
+// Strip token background colors from syntax highlighting,
+// letting RenderStyle.code_bg control the background instead
+renderer.set_highlight_background(Some((30, 30, 30)));
+```
+
+### Parser Cloning
+
+`Parser` implements `Clone`, enabling state snapshotting for preview rendering:
+
+```rust
+let snapshot = parser.clone();
+// ... do preview rendering ...
+parser = snapshot; // restore original state
 ```
 
 ### Crate Structure
@@ -268,16 +338,19 @@ cargo doc --workspace --open
 | Feature | Python | Rust |
 |---------|--------|------|
 | Streaming parsing | ✅ | ✅ |
-| Syntax highlighting | ✅ (Pygments) | ✅ (syntect) |
+| Syntax highlighting | ✅ (Pygments) | ✅ (syntect, stateful) |
 | Tables | ✅ | ✅ |
 | Code blocks | ✅ | ✅ |
 | Lists (nested) | ✅ | ✅ |
-| Think blocks | ✅ | ✅ |
+| Think blocks | ✅ | ✅ (with code block support) |
 | PTY exec mode | ✅ | ✅ |
 | Clipboard (OSC 52) | ✅ | ✅ |
 | Savebrace | ✅ | ✅ |
-| LaTeX to Unicode | ✅ | ✅ |
+| LaTeX to Unicode | ✅ | ✅ (with Rewrite for inline formatting) |
 | Configuration | ✅ | ✅ |
+| Custom themes | ❌ | ✅ |
+| Persistent render state | ❌ | ✅ |
+| Parser cloning | ❌ | ✅ |
 | Performance | Good | Excellent |
 | Memory safety | Manual | Guaranteed |
 | Binary size | ~50MB (with Python) | ~5MB |
