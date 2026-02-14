@@ -517,6 +517,8 @@ impl Parser {
         // Check for end of think block (various formats)
         if line.trim() == "</think>" || line.trim() == "</think▷" || line.trim() == "◁/think▷"
         {
+            // Close any open list/table contexts before ending think block
+            self.exit_block_contexts();
             self.events.push(ParseEvent::ThinkBlockEnd);
             self.state.exit_block();
             return;
@@ -529,6 +531,39 @@ impl Parser {
             return;
         }
 
+        // Handle empty lines
+        if line.trim().is_empty() {
+            if self.prev_was_empty {
+                return; // Collapse consecutive empty lines
+            }
+            self.prev_was_empty = true;
+            self.state.last_line_empty = true;
+            self.events
+                .push(ParseEvent::ThinkBlockLine(String::new()));
+            return;
+        }
+
+        self.prev_was_empty = false;
+        self.state.last_line_empty = false;
+
+        // Try block-level constructs (same order as parse_line)
+        if self.try_parse_heading(line) {
+            return;
+        }
+        if self.try_parse_hr(line) {
+            return;
+        }
+        if self.try_parse_list_item(line) {
+            return;
+        }
+        if self.try_parse_table(line) {
+            return;
+        }
+
+        // Exit list/table contexts for plain text
+        self.exit_block_contexts();
+
+        // Fall back to ThinkBlockLine with preserved content
         self.events
             .push(ParseEvent::ThinkBlockLine(line.to_string()));
     }
@@ -771,6 +806,7 @@ impl Parser {
         }
 
         if self.state.block_type == Some(BlockType::Think) {
+            self.exit_block_contexts();
             self.events.push(ParseEvent::ThinkBlockEnd);
             self.state.exit_block();
         }

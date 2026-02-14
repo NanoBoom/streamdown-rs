@@ -168,6 +168,7 @@ impl Default for RenderStyle {
 #[derive(Debug, Clone, Default)]
 pub struct RenderState {
     pub in_blockquote: bool,
+    pub in_think_block: bool,
     pub blockquote_depth: usize,
     pub list_state: ListState,
     pub table_state: TableState,
@@ -200,6 +201,8 @@ pub struct Renderer<W: Write> {
     list_state: ListState,
     /// Whether in a blockquote
     in_blockquote: bool,
+    /// Whether in a think block (for correct border color)
+    in_think_block: bool,
     /// Blockquote depth
     blockquote_depth: usize,
     /// Syntax parse state for streaming code highlighting
@@ -223,6 +226,7 @@ impl<W: Write> Renderer<W> {
             table_state: TableState::new(),
             list_state: ListState::new(),
             in_blockquote: false,
+            in_think_block: false,
             blockquote_depth: 0,
             code_parse_state: None,
             code_highlight_state: None,
@@ -281,6 +285,7 @@ impl<W: Write> Renderer<W> {
     pub fn save_state(&self) -> RenderState {
         RenderState {
             in_blockquote: self.in_blockquote,
+            in_think_block: self.in_think_block,
             blockquote_depth: self.blockquote_depth,
             list_state: self.list_state.clone(),
             table_state: self.table_state.clone(),
@@ -293,6 +298,7 @@ impl<W: Write> Renderer<W> {
     /// Restore persistent state from a previous renderer instance.
     pub fn restore_state(&mut self, state: RenderState) {
         self.in_blockquote = state.in_blockquote;
+        self.in_think_block = state.in_think_block;
         self.blockquote_depth = state.blockquote_depth;
         self.list_state = state.list_state;
         self.table_state = state.table_state;
@@ -335,7 +341,12 @@ impl<W: Write> Renderer<W> {
     /// Calculate the left margin based on current state.
     fn left_margin(&self) -> String {
         if self.in_blockquote {
-            let border = format!("{}│{} ", fg_color(&self.style.blockquote_border), RESET);
+            let color = if self.in_think_block {
+                &self.style.think_border
+            } else {
+                &self.style.blockquote_border
+            };
+            let border = format!("{}│{} ", fg_color(color), RESET);
             border.repeat(self.blockquote_depth)
         } else {
             String::new()
@@ -636,6 +647,7 @@ impl<W: Write> Renderer<W> {
                 let fg = fg_color(&self.style.think_border);
                 self.writeln(&format!("{}┌─ thinking ─{}", fg, RESET))?;
                 self.in_blockquote = true;
+                self.in_think_block = true;
                 self.blockquote_depth = 1;
             }
 
@@ -646,13 +658,19 @@ impl<W: Write> Renderer<W> {
                 if text.trim().is_empty() {
                     self.writeln(&margin)?;
                 } else {
-                    let rendered = list::render_inline_content(text, &self.style);
+                    // Preserve leading whitespace as indentation
+                    let leading: usize = text.chars().take_while(|c| c.is_whitespace()).count();
+                    let indent_str = " ".repeat(leading);
+                    let first_prefix = format!("{}{}", margin, indent_str);
+                    let next_prefix = format!("{}{}", margin, indent_str);
+                    let trimmed = text.trim_start();
+                    let rendered = list::render_inline_content(trimmed, &self.style);
                     let wrapped = text_wrap(
                         &rendered,
-                        self.current_width(),
+                        self.current_width().saturating_sub(leading),
                         0,
-                        &margin,
-                        &margin,
+                        &first_prefix,
+                        &next_prefix,
                         false,
                         true,
                     );
@@ -666,6 +684,7 @@ impl<W: Write> Renderer<W> {
                 let fg = fg_color(&self.style.think_border);
                 self.writeln(&format!("{}└{}", fg, RESET))?;
                 self.in_blockquote = false;
+                self.in_think_block = false;
                 self.blockquote_depth = 0;
             }
 
