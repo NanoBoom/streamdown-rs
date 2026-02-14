@@ -33,10 +33,12 @@ mod languages;
 
 pub use languages::{LANGUAGE_ALIASES, aliases_for, all_aliases, language_alias};
 pub use syntect::highlighting::Theme;
+pub use syntect::highlighting::HighlightState as CodeHighlightState;
+pub use syntect::parsing::ParseState as CodeParseState;
 
 use syntect::easy::HighlightLines;
-use syntect::highlighting::{Color, FontStyle, Style, ThemeSet};
-use syntect::parsing::{SyntaxReference, SyntaxSet};
+use syntect::highlighting::{Color, FontStyle, HighlightIterator, Style, ThemeSet};
+use syntect::parsing::{ScopeStack, SyntaxReference, SyntaxSet};
 use syntect::util::as_24_bit_terminal_escaped;
 
 /// Reset ANSI escape code
@@ -295,6 +297,46 @@ impl Highlighter {
     pub fn highlight(&self, code: &str, language: Option<&str>) -> String {
         let lang = language.unwrap_or("text");
         self.highlight_block(code, lang)
+    }
+
+    /// Create a parse state for stateful line-by-line highlighting.
+    pub fn new_code_parse_state(&self, language: &str) -> CodeParseState {
+        let syntax = self
+            .syntax_for_language(language)
+            .unwrap_or_else(|| self.plain_text());
+        CodeParseState::new(syntax)
+    }
+
+    /// Create a highlight state for stateful line-by-line highlighting.
+    pub fn new_code_highlight_state(&self) -> CodeHighlightState {
+        let hl = syntect::highlighting::Highlighter::new(self.theme());
+        CodeHighlightState::new(&hl, ScopeStack::new())
+    }
+
+    /// Highlight a single line with externally managed state.
+    ///
+    /// Maintains parse state across lines for correct multi-line token handling.
+    pub fn highlight_line_stateful(
+        &self,
+        line: &str,
+        parse_state: &mut CodeParseState,
+        hl_state: &mut CodeHighlightState,
+    ) -> String {
+        let ops = match parse_state.parse_line(line, &self.syntax_set) {
+            Ok(ops) => ops,
+            Err(_) => return line.to_string(),
+        };
+
+        let hl = syntect::highlighting::Highlighter::new(self.theme());
+        let ranges: Vec<(Style, &str)> =
+            HighlightIterator::new(hl_state, &ops, line, &hl).collect();
+
+        if self.background_override.is_some() {
+            self.styles_to_ansi(&ranges)
+        } else {
+            let escaped = as_24_bit_terminal_escaped(&ranges, false);
+            format!("{}{}", escaped, RESET)
+        }
     }
 
     /// List available theme names.

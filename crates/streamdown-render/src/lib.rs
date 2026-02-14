@@ -79,7 +79,7 @@ pub fn bg_color(color: &str) -> String {
     }
 }
 use streamdown_parser::{InlineElement, ParseEvent};
-use streamdown_syntax::Highlighter;
+use streamdown_syntax::{CodeHighlightState, CodeParseState, Highlighter};
 
 /// Render style configuration.
 ///
@@ -202,6 +202,10 @@ pub struct Renderer<W: Write> {
     in_blockquote: bool,
     /// Blockquote depth
     blockquote_depth: usize,
+    /// Syntax parse state for streaming code highlighting
+    code_parse_state: Option<CodeParseState>,
+    /// Highlight state for streaming code highlighting
+    code_highlight_state: Option<CodeHighlightState>,
 }
 
 impl<W: Write> Renderer<W> {
@@ -220,6 +224,8 @@ impl<W: Write> Renderer<W> {
             list_state: ListState::new(),
             in_blockquote: false,
             blockquote_depth: 0,
+            code_parse_state: None,
+            code_highlight_state: None,
         }
     }
 
@@ -290,9 +296,15 @@ impl<W: Write> Renderer<W> {
         self.blockquote_depth = state.blockquote_depth;
         self.list_state = state.list_state;
         self.table_state = state.table_state;
-        self.code_language = state.code_language;
         self.code_buffer = state.code_buffer;
         self.column = state.column;
+
+        // Reinitialize highlight state if inside a code block
+        if let Some(ref lang) = state.code_language {
+            self.code_parse_state = Some(self.highlighter.new_code_parse_state(lang));
+            self.code_highlight_state = Some(self.highlighter.new_code_highlight_state());
+        }
+        self.code_language = state.code_language;
     }
 
     /// Enable or disable clipboard integration.
@@ -439,6 +451,11 @@ impl<W: Write> Renderer<W> {
                 self.code_language = language.clone();
                 self.code_buffer.clear();
 
+                // Initialize streaming highlight state
+                let lang = language.as_deref().unwrap_or("text");
+                self.code_parse_state = Some(self.highlighter.new_code_parse_state(lang));
+                self.code_highlight_state = Some(self.highlighter.new_code_highlight_state());
+
                 let lines = code::render_code_start(
                     language.as_deref(),
                     self.current_width(),
@@ -458,8 +475,18 @@ impl<W: Write> Renderer<W> {
                 }
                 self.code_buffer.push_str(line);
 
-                let lang = self.code_language.as_deref().unwrap_or("text");
-                let highlighted = self.highlighter.highlight(line, Some(lang));
+                let highlighted = match (
+                    &mut self.code_parse_state,
+                    &mut self.code_highlight_state,
+                ) {
+                    (Some(ps), Some(hs)) => {
+                        self.highlighter.highlight_line_stateful(line, ps, hs)
+                    }
+                    _ => {
+                        let lang = self.code_language.as_deref().unwrap_or("text");
+                        self.highlighter.highlight(line, Some(lang))
+                    }
+                };
 
                 // Render with background
                 let bg = bg_color(&self.style.code_bg);
@@ -503,6 +530,8 @@ impl<W: Write> Renderer<W> {
 
                 self.code_language = None;
                 self.code_buffer.clear();
+                self.code_parse_state = None;
+                self.code_highlight_state = None;
             }
 
             ParseEvent::ListItem {
