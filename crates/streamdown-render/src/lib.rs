@@ -641,7 +641,25 @@ impl<W: Write> Renderer<W> {
 
             ParseEvent::ThinkBlockLine(text) => {
                 let fg = fg_color(&self.style.think_border);
-                self.writeln(&format!("{}│{} {}", fg, RESET, text))?;
+                let margin = format!("{}│{} ", fg, RESET);
+
+                if text.trim().is_empty() {
+                    self.writeln(&margin)?;
+                } else {
+                    let rendered = list::render_inline_content(text, &self.style);
+                    let wrapped = text_wrap(
+                        &rendered,
+                        self.current_width(),
+                        0,
+                        &margin,
+                        &margin,
+                        false,
+                        true,
+                    );
+                    for line in wrapped.lines {
+                        self.writeln(&line)?;
+                    }
+                }
             }
 
             ParseEvent::ThinkBlockEnd => {
