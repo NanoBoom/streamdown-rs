@@ -214,7 +214,7 @@ pub fn render_list_item(
     };
 
     // Calculate indentation
-    let indent_spaces = indent * 2;
+    let indent_spaces = level * 2;
     let marker_width = unicode_width::UnicodeWidthStr::width(marker.as_str());
     let content_indent = indent_spaces + marker_width + 1; // +1 for space after marker
 
