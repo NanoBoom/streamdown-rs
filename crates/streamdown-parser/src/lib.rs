@@ -519,10 +519,18 @@ impl Parser {
         {
             self.events.push(ParseEvent::ThinkBlockEnd);
             self.state.exit_block();
-        } else {
-            self.events
-                .push(ParseEvent::ThinkBlockLine(line.to_string()));
+            return;
         }
+
+        // Detect code fence start within think block.
+        // Once entered, parse_line() checks is_in_code() before think block,
+        // so subsequent lines route to parse_in_code_block() automatically.
+        if self.try_parse_code_fence(line) {
+            return;
+        }
+
+        self.events
+            .push(ParseEvent::ThinkBlockLine(line.to_string()));
     }
 
     fn try_parse_block(&mut self, line: &str) -> bool {
@@ -987,6 +995,66 @@ mod tests {
         );
         let e3 = parser.parse_line("</think>");
         assert!(e3.iter().any(|e| matches!(e, ParseEvent::ThinkBlockEnd)));
+    }
+
+    #[test]
+    fn test_code_block_inside_think_block() {
+        let mut parser = Parser::new();
+
+        // Enter think block
+        let e1 = parser.parse_line("<think>");
+        assert!(e1.iter().any(|e| matches!(e, ParseEvent::ThinkBlockStart)));
+
+        // Text inside think block
+        let e2 = parser.parse_line("Here is some code:");
+        assert!(e2.iter().any(|e| matches!(e, ParseEvent::ThinkBlockLine(_))));
+
+        // Code fence start inside think block
+        let e3 = parser.parse_line("```python");
+        assert!(e3.iter().any(|e| matches!(
+            e, ParseEvent::CodeBlockStart { language: Some(l), .. } if l == "python"
+        )));
+
+        // Code line inside code block (within think block)
+        let e4 = parser.parse_line("    def foo():");
+        assert!(e4.iter().any(|e| matches!(
+            e, ParseEvent::CodeBlockLine(s) if s == "    def foo():"
+        )));
+
+        let e5 = parser.parse_line("        return 1");
+        assert!(e5.iter().any(|e| matches!(
+            e, ParseEvent::CodeBlockLine(s) if s == "        return 1"
+        )));
+
+        // Code fence end
+        let e6 = parser.parse_line("```");
+        assert!(e6.iter().any(|e| matches!(e, ParseEvent::CodeBlockEnd)));
+
+        // Back to think block text
+        let e7 = parser.parse_line("That was the code.");
+        assert!(e7.iter().any(|e| matches!(e, ParseEvent::ThinkBlockLine(_))));
+
+        // End think block
+        let e8 = parser.parse_line("</think>");
+        assert!(e8.iter().any(|e| matches!(e, ParseEvent::ThinkBlockEnd)));
+    }
+
+    #[test]
+    fn test_think_block_code_does_not_break_close_tag() {
+        // </think> inside a code block must NOT close the think block
+        let mut parser = Parser::new();
+
+        parser.parse_line("<think>");
+        parser.parse_line("```");
+        let e = parser.parse_line("</think>");
+        // Should be a code line, not ThinkBlockEnd
+        assert!(e.iter().any(|e| matches!(e, ParseEvent::CodeBlockLine(s) if s == "</think>")));
+        assert!(!e.iter().any(|e| matches!(e, ParseEvent::ThinkBlockEnd)));
+
+        // Close code block, then close think block
+        parser.parse_line("```");
+        let e2 = parser.parse_line("</think>");
+        assert!(e2.iter().any(|e| matches!(e, ParseEvent::ThinkBlockEnd)));
     }
 
     #[test]
