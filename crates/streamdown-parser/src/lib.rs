@@ -210,7 +210,7 @@ impl ParseEvent {
 // =============================================================================
 
 /// Streaming markdown parser.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Parser {
     state: ParseState,
     inline_parser: InlineParser,

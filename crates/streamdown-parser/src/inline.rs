@@ -76,7 +76,7 @@ impl FormatState {
 /// Inline markdown parser.
 ///
 /// Parses inline formatting and returns structured elements.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct InlineParser {
     tokenizer: Tokenizer,
     state: FormatState,

@@ -113,7 +113,7 @@ impl Token {
 }
 
 /// Tokenizer for inline markdown content.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Tokenizer {
     /// Whether to process links
     pub process_links: bool,
