@@ -31,20 +31,35 @@ print(greet("World"))
     // Create a custom style with different colors
     // Colors are in "r;g;bm" format for ANSI sequences
     let custom_style = RenderStyle {
-        // Bright cyan for emphasis
-        bright: "0;255;255".to_string(),
-        // Green for headings
-        head: "0;255;128".to_string(),
-        // Yellow for symbols/bullets
-        symbol: "255;255;0".to_string(),
-        // Gray for muted text
-        grey: "128;128;128".to_string(),
-        // Dark blue for backgrounds
-        dark: "20;20;60".to_string(),
-        // Medium purple
-        mid: "80;60;120".to_string(),
-        // Light lavender
-        light: "180;160;220".to_string(),
+        // Bright cyan for h1
+        h1: "0;255;255".to_string(),
+        // Green for h2
+        h2: "0;255;128".to_string(),
+        // Yellow for h3
+        h3: "255;255;0".to_string(),
+        // Light colors for h4-h6
+        h4: "180;160;220".to_string(),
+        h5: "180;160;220".to_string(),
+        h6: "128;128;128".to_string(),
+        // Dark blue for code backgrounds
+        code_bg: "20;20;60".to_string(),
+        // Cyan for code labels
+        code_label: "0;255;255".to_string(),
+        // Yellow for bullets
+        bullet: "255;255;0".to_string(),
+        // Medium purple for table headers
+        table_header_bg: "80;60;120".to_string(),
+        // Gray for borders
+        table_border: "128;128;128".to_string(),
+        blockquote_border: "128;128;128".to_string(),
+        think_border: "128;128;128".to_string(),
+        hr: "128;128;128".to_string(),
+        // Gray for links
+        link_url: "128;128;128".to_string(),
+        // Cyan for image markers
+        image_marker: "0;255;255".to_string(),
+        // Yellow for footnotes
+        footnote: "255;255;0".to_string(),
     };
 
     // Create output buffer
