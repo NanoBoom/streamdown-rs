@@ -652,8 +652,7 @@ impl<W: Write> Renderer<W> {
             }
 
             ParseEvent::ThinkBlockLine(text) => {
-                let fg = fg_color(&self.style.think_border);
-                let margin = format!("{}│{} ", fg, RESET);
+                let margin = self.left_margin();
 
                 if text.trim().is_empty() {
                     self.writeln(&margin)?;

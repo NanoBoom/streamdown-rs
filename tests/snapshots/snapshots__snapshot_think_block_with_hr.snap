@@ -1,0 +1,11 @@
+---
+source: tests/snapshots.rs
+expression: output
+---
+┌─ thinking ─
+│ Before hr.
+│ 
+│ ─────────────────────────────────────────────────────────────────────────────
+│ 
+│ After hr.
+└

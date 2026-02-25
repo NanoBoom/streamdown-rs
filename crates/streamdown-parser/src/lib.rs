@@ -62,7 +62,7 @@ static LIST_ITEM_RE: LazyLock<Regex> =
 
 /// Regex for blockquotes and think blocks (including unicode variants)
 static BLOCK_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^\s*((>\s*)+|[◁<].?think[>▷]|</?.?think[>▷]?)(.*)$").unwrap());
+    LazyLock::new(|| Regex::new(r"^\s*((>\s*)+|[◁<].?think(?:ing)?[>▷]|</?.?think(?:ing)?[>▷]?)(.*)$").unwrap());
 
 /// Regex for horizontal rules
 static HR_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(---+|\*\*\*+|___+)\s*$").unwrap());
@@ -515,7 +515,12 @@ impl Parser {
 
     fn parse_in_think_block(&mut self, line: &str) {
         // Check for end of think block (various formats)
-        if line.trim() == "</think>" || line.trim() == "</think▷" || line.trim() == "◁/think▷"
+        if line.trim() == "</think>"
+            || line.trim() == "</thinking>"
+            || line.trim() == "</think▷"
+            || line.trim() == "</thinking▷"
+            || line.trim() == "◁/think▷"
+            || line.trim() == "◁/thinking▷"
         {
             // Close any open list/table contexts before ending think block
             self.exit_block_contexts();

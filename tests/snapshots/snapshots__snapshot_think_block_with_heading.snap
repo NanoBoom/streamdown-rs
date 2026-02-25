@@ -1,0 +1,10 @@
+---
+source: tests/snapshots.rs
+expression: output
+---
+┌─ thinking ─
+│ 
+│                               Heading in think
+│ 
+│ Some text here.
+└

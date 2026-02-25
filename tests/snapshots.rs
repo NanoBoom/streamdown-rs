@@ -210,6 +210,72 @@ It should be styled differently.
 }
 
 // =============================================================================
+// Think Block with Markdown Snapshots
+// =============================================================================
+
+#[test]
+fn test_snapshot_think_block_with_heading() {
+    let input = "<think>\n# Heading in think\n\nSome text here.\n</think>";
+    let output = render(input, 80);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_think_block_with_list() {
+    let input = "<think>\n- Item 1\n- Item 2\n- Item 3\n</think>";
+    let output = render(input, 80);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_think_block_with_code() {
+    let input = "<think>\nSome thought.\n\n```rust\nlet x = 1;\n```\n</think>";
+    let output = render(input, 80);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_think_block_with_table() {
+    let input = "<think>\n| A | B |\n|---|---|\n| 1 | 2 |\n</think>";
+    let output = render(input, 80);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_think_block_with_hr() {
+    let input = "<think>\nBefore hr.\n\n---\n\nAfter hr.\n</think>";
+    let output = render(input, 80);
+    insta::assert_snapshot!(output);
+}
+
+#[test]
+fn test_snapshot_think_block_with_mixed_markdown() {
+    let input = r#"<think>
+# Analysis
+
+This is **bold** and *italic* text.
+
+- Point 1
+- Point 2
+
+```python
+def hello():
+    pass
+```
+
+| Col1 | Col2 |
+|------|------|
+| A    | B    |
+
+---
+
+Final thought.
+</think>"#;
+    let output = render(input, 80);
+    insta::assert_snapshot!(output);
+}
+
+// =============================================================================
 // Horizontal Rule Snapshots
 // =============================================================================
 
