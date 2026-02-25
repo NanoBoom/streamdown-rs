@@ -1,6 +1,6 @@
 ---
 source: tests/snapshots.rs
+assertion_line: 42
 expression: output
 ---
-
-                                 Section Title
+Section Title

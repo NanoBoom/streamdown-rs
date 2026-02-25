@@ -1,11 +1,11 @@
 ---
 source: tests/snapshots.rs
+assertion_line: 54
 expression: output
 ---
 
                                        H1
-
-                                       H2                                       
+H2
 H3
 H4
 H5

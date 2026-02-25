@@ -2,7 +2,7 @@
 //!
 //! Renders markdown headings (h1-h6) with different styles:
 //! - h1: Bold, h1 color, centered
-//! - h2: Bold, h2 color, centered
+//! - h2: Bold, h2 color
 //! - h3: Bold, h3 color
 //! - h4: Bold, h4 color
 //! - h5: h5 color (no bold)
@@ -37,13 +37,12 @@ pub fn render_heading(
     let mut result = Vec::new();
 
     for line in lines {
-        let line_width = visible_length(&line);
-        let spaces_to_center = (width.saturating_sub(line_width)) / 2;
-        let center_pad = " ".repeat(spaces_to_center);
-
         let rendered = match level {
             1 => {
                 // h1: Bold, colored, centered
+                let line_width = visible_length(&line);
+                let spaces_to_center = (width.saturating_sub(line_width)) / 2;
+                let center_pad = " ".repeat(spaces_to_center);
                 let fg = fg_color(&style.h1);
                 format!(
                     "{}\n{}{}{}{}{}{}{}",
@@ -51,22 +50,11 @@ pub fn render_heading(
                 )
             }
             2 => {
-                // h2: Bold, colored, centered
+                // h2: Bold, colored, left-aligned
                 let fg = fg_color(&style.h2);
-                let spaces_right = width
-                    .saturating_sub(line_width)
-                    .saturating_sub(spaces_to_center);
                 format!(
-                    "{}\n{}{}{}{}{}{}{}{}",
-                    left_margin,
-                    left_margin,
-                    BOLD_ON,
-                    fg,
-                    center_pad,
-                    line,
-                    " ".repeat(spaces_right),
-                    BOLD_OFF,
-                    RESET
+                    "{}{}{}{}{}{}",
+                    left_margin, BOLD_ON, fg, line, BOLD_OFF, RESET
                 )
             }
             3 => {
