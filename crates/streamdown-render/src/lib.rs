@@ -45,6 +45,7 @@ pub use heading::render_heading;
 pub use list::{BULLETS, ListState, render_list_item};
 pub use table::{TableState, render_table_row, render_table_separator};
 pub use text::{WrappedText, simple_wrap, split_text, text_wrap};
+pub use streamdown_syntax::{Theme, load_theme_from_file, load_theme_from_tmtheme};
 
 use std::io::Write;
 
@@ -87,6 +88,7 @@ use streamdown_syntax::{CodeHighlightState, CodeParseState, Highlighter};
 /// Colors can be specified as hex values (e.g., "#edf171") or as
 /// Colodore preset names (e.g., "yellow", "cyan").
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct RenderStyle {
     // Heading colors
     /// Color for h1 headings

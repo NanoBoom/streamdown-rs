@@ -1311,6 +1311,7 @@ dependencies = [
  "streamdown-plugin",
  "streamdown-render",
  "streamdown-syntax",
+ "syntect",
  "terminal_size",
  "toml",
 ]

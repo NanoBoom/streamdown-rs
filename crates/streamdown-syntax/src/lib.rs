@@ -36,6 +36,18 @@ pub use syntect::highlighting::Theme;
 pub use syntect::highlighting::HighlightState as CodeHighlightState;
 pub use syntect::parsing::ParseState as CodeParseState;
 
+use std::path::Path;
+
+/// Load a syntect `Theme` from a binary dump file (`.bin`).
+pub fn load_theme_from_file(path: &Path) -> Result<Theme, Box<dyn std::error::Error + Send + Sync>> {
+    syntect::dumps::from_dump_file(path).map_err(|e| Box::new(e) as _)
+}
+
+/// Load a syntect `Theme` from a TextMate theme file (`.tmTheme`).
+pub fn load_theme_from_tmtheme(path: &Path) -> Result<Theme, syntect::LoadingError> {
+    syntect::highlighting::ThemeSet::get_theme(path)
+}
+
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{Color, FontStyle, HighlightIterator, Style, ThemeSet};
 use syntect::parsing::{ScopeStack, SyntaxReference, SyntaxSet};
