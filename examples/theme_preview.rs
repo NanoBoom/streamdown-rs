@@ -9,7 +9,7 @@
 
 use std::path::Path;
 use streamdown_parser::Parser;
-use streamdown_render::{load_theme_from_file, RenderStyle, Renderer};
+use streamdown_render::{load_theme_from_file, load_theme_from_tmtheme, RenderStyle, Renderer};
 
 const SAMPLE: &str = r#"# Heading 1
 ## Heading 2
@@ -67,16 +67,48 @@ fn main() {
         None
     };
 
-    // 加载 syntax.bin（可选）
-    let syntax_path = theme_dir.join("syntax.bin");
-    let syntax_theme = if syntax_path.exists() {
-        let theme = load_theme_from_file(&syntax_path)
-            .unwrap_or_else(|e| panic!("Failed to load {}: {e}", syntax_path.display()));
-        eprintln!("Loaded syntax theme: {}", syntax_path.display());
-        Some(theme)
-    } else {
-        eprintln!("No syntax.bin found, using default syntax theme");
-        None
+    // 加载语法高亮主题（优先 .tmTheme，其次 .bin）
+    let syntax_theme = {
+        // 尝试查找 .tmTheme 文件
+        let tmtheme_files: Vec<_> = std::fs::read_dir(theme_dir)
+            .ok()
+            .and_then(|entries| {
+                let files: Vec<_> = entries
+                    .filter_map(|e| e.ok())
+                    .filter(|e| {
+                        e.path()
+                            .extension()
+                            .map_or(false, |ext| ext == "tmTheme")
+                    })
+                    .collect();
+                if files.is_empty() {
+                    None
+                } else {
+                    Some(files)
+                }
+            })
+            .unwrap_or_default();
+
+        if let Some(entry) = tmtheme_files.first() {
+            // 优先加载 .tmTheme 文件
+            let tmtheme_path = entry.path();
+            let theme = load_theme_from_tmtheme(&tmtheme_path)
+                .unwrap_or_else(|e| panic!("Failed to load {}: {e}", tmtheme_path.display()));
+            eprintln!("Loaded syntax theme: {}", tmtheme_path.display());
+            Some(theme)
+        } else {
+            // 回退到 syntax.bin
+            let syntax_path = theme_dir.join("syntax.bin");
+            if syntax_path.exists() {
+                let theme = load_theme_from_file(&syntax_path)
+                    .unwrap_or_else(|e| panic!("Failed to load {}: {e}", syntax_path.display()));
+                eprintln!("Loaded syntax theme: {}", syntax_path.display());
+                Some(theme)
+            } else {
+                eprintln!("No .tmTheme or syntax.bin found, using default syntax theme");
+                None
+            }
+        }
     };
 
     let width = terminal_size::terminal_size()
